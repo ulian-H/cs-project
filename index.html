@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Todo App</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Todo App</h1>
+    <form id="todo-form" class="new-todo" onsubmit="return false;">
+      <input id="title-input" type="text" placeholder="new todo" aria-label="new todo">
+      <textarea id="desc-input" placeholder="description" aria-label="description"></textarea>
+      <button id="add-btn" type="button">Add</button>
+    </form>
+    <ul id="todo-list" class="todo-list" aria-live="polite"></ul>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
