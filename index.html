@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Todo App</title>
+  <title>待辦清單</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div class="container">
-    <h1>Todo App</h1>
+    <h1>待辦清單</h1>
     <form id="todo-form" class="new-todo" onsubmit="return false;">
-      <input id="title-input" type="text" placeholder="new todo" aria-label="new todo">
-      <textarea id="desc-input" placeholder="description" aria-label="description"></textarea>
-      <button id="add-btn" type="button">Add</button>
+      <input id="title-input" type="text" placeholder="新增待辦" aria-label="新增待辦">
+      <textarea id="desc-input" placeholder="描述" aria-label="描述"></textarea>
+      <button id="add-btn" type="button">新增</button>
     </form>
     <ul id="todo-list" class="todo-list" aria-live="polite"></ul>
   </div>

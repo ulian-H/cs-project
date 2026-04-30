@@ -5,8 +5,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const addBtn = document.getElementById('add-btn');
 
   let todos = [
-    { id: 1, title: 'todo1', desc: '這是 todo1 的描述。', checked: false, expanded: false },
-    { id: 2, title: 'todo2', desc: '這是 todo2 的描述。', checked: false, expanded: false }
+    { id: 1, title: '待辦1', desc: '這是待辦1 的描述。', checked: false, expanded: false },
+    { id: 2, title: '待辦2', desc: '這是待辦2 的描述。', checked: false, expanded: false }
   ];
   let nextId = 3;
 
