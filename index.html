@@ -3,18 +3,121 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>待辦清單</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>AI 智慧行事曆</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="container">
-    <h1>待辦清單</h1>
-    <form id="todo-form" class="new-todo" onsubmit="return false;">
-      <input id="title-input" type="text" placeholder="新增待辦" aria-label="新增待辦">
-      <textarea id="desc-input" placeholder="描述" aria-label="描述"></textarea>
-      <button id="add-btn" type="button">新增</button>
-    </form>
-    <ul id="todo-list" class="todo-list" aria-live="polite"></ul>
+  <div class="calendar-app">
+    <header class="app-header">
+      <div>
+        <p class="badge">MVP</p>
+        <h1>AI 智慧行事曆</h1>
+        <p>支援月/週/日檢視、事件管理、API 自動匯入、Google Sheet 同步與簡易 AI 自然語言。</p>
+      </div>
+      <div class="header-actions">
+        <button id="prev-btn" type="button">← 上一個</button>
+        <div class="current-period" id="current-period"></div>
+        <button id="next-btn" type="button">下一個 →</button>
+        <div class="view-switcher" role="tablist" aria-label="切換檢視">
+          <button class="view-btn active" data-view="month" type="button">月</button>
+          <button class="view-btn" data-view="week" type="button">週</button>
+          <button class="view-btn" data-view="day" type="button">日</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="calendar-panel">
+        <div class="calendar-toolbar">
+          <button id="open-event-btn" type="button">新增事件</button>
+          <button id="api-load-btn" type="button">從 API 匯入事件</button>
+          <button id="sync-sheet-btn" type="button">同步到 Google Sheet</button>
+        </div>
+        <div id="calendar-grid" class="calendar-grid"></div>
+        <div id="calendar-list" class="calendar-list hidden"></div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel">
+          <h2>今日摘要</h2>
+          <div id="summary-panel" class="summary-panel">請選擇檢視或匯入事件開始。</div>
+        </section>
+
+        <section class="panel categories-panel">
+          <h2>顏色分類</h2>
+          <ul class="category-list">
+            <li><span class="chip school"></span>學校</li>
+            <li><span class="chip apcs"></span>APCS</li>
+            <li><span class="chip club"></span>社團</li>
+            <li><span class="chip personal"></span>私事</li>
+          </ul>
+        </section>
+
+        <section class="panel ai-panel">
+          <h2>AI 助手</h2>
+          <textarea id="ai-input" placeholder="例如：下週三下午三點跟老師討論專題"></textarea>
+          <button id="ai-action-btn" type="button">解析並建立</button>
+          <div id="ai-response" class="ai-response"></div>
+        </section>
+        <section class="panel integration-panel">
+          <h2>整合 / 通知</h2>
+          <label>Line Notify 權杖 (Token)
+            <input id="line-token" type="text" placeholder="輸入 Line Notify 權杖 (可先測試)" />
+          </label>
+          <button id="line-save-btn" type="button">儲存權杖</button>
+          <button id="line-send-btn" type="button">測試傳送通知</button>
+          <div id="line-response" class="ai-response" style="margin-top:8px"></div>
+        </section>
+      </aside>
+    </main>
+
+    <div id="event-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <div class="modal-header">
+          <h2 id="modal-title">新增 / 編輯事件</h2>
+          <button id="close-modal-btn" class="close-btn" type="button">×</button>
+        </div>
+        <form id="event-form" onsubmit="return false;">
+          <label>標題 <input id="event-title" type="text" placeholder="例如：數學補習" required /></label>
+          <label>日期 <input id="event-date" type="date" required /></label>
+          <div class="row-gap">
+            <label>開始時間 <input id="event-start" type="time" /></label>
+            <label>結束時間 <input id="event-end" type="time" /></label>
+          </div>
+          <label class="checkbox-label"><input id="event-all-day" type="checkbox" /> 全天事件</label>
+          <label>分類
+            <select id="event-category">
+              <option value="學校">學校</option>
+              <option value="APCS">APCS</option>
+              <option value="社團">社團</option>
+              <option value="私事">私事</option>
+            </select>
+          </label>
+          <label>提醒
+            <select id="event-remind">
+              <option value="0">不提醒</option>
+              <option value="5">提前 5 分鐘</option>
+              <option value="30">提前 30 分鐘</option>
+              <option value="1440">提前 1 天</option>
+            </select>
+          </label>
+          <label>重複
+            <select id="event-recurring">
+              <option value="none">無</option>
+              <option value="daily">每天</option>
+              <option value="weekly">每週</option>
+              <option value="monthly">每月</option>
+            </select>
+          </label>
+          <label>描述 <textarea id="event-desc" placeholder="事件細節，可選填"></textarea></label>
+          <div class="modal-actions">
+            <button id="save-event-btn" type="button">存檔</button>
+            <button id="delete-event-btn" type="button" class="danger hidden">刪除</button>
+          </div>
+          <div id="event-message" class="event-message"></div>
+        </form>
+      </div>
+    </div>
   </div>
   <script src="script.js"></script>
 </body>
