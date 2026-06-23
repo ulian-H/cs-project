@@ -45,6 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.view-btn').forEach((btn) => btn.addEventListener('click', switchView));
   dom.eventAllDay.addEventListener('change', toggleAllDay);
 
+  // AI controls
+  dom.aiDuration = document.getElementById('ai-duration');
+  dom.aiPriority = document.getElementById('ai-priority');
+  dom.aiDraftToggle = document.getElementById('ai-draft-toggle');
+  dom.aiDraft = document.getElementById('ai-draft');
+
   // Line Notify UI handlers
   dom.lineTokenInput = document.getElementById('line-token');
   dom.lineSaveBtn = document.getElementById('line-save-btn');
@@ -425,14 +431,20 @@ function syncAllEventsToSheet() {
   fetch(GAS_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ events: state.events }),
+    body: JSON.stringify({ action: 'saveEvents', events: state.events }),
   })
     .then((response) => response.json())
-    .then(() => {
-      dom.aiResponse.textContent = `已同步 ${state.events.length} 筆事件至 Google Sheet。`;
+    .then((result) => {
+      if (result.status === 'ok') {
+        const data = result.data || {};
+        const rowInfo = data.rowRange ? ` (行 ${data.rowRange.from} - ${data.rowRange.to})` : '';
+        dom.aiResponse.textContent = `✓ 已同步 ${data.saved || state.events.length} 筆事件至 Google Sheet${rowInfo}。`;
+      } else {
+        throw new Error(result.message);
+      }
     })
     .catch((error) => {
-      dom.aiResponse.textContent = `同步失敗：請確認 GAS 網址與部署設定。(${error.message})`;
+      dom.aiResponse.textContent = `同步失敗：${error.message}。請確認 GAS 網址與 SPREADSHEET_ID 設定。`;
     });
 }
 
@@ -440,6 +452,20 @@ function handleAiCommand() {
   const text = dom.aiInput.value.trim();
   if (!text) {
     dom.aiResponse.textContent = '請輸入自然語言指令，例如「下週三下午三點跟老師討論專題」。';
+    return;
+  }
+  // detect scheduling intent
+  if (/幫我排|排定|安排/.test(text)) {
+    const defaultDur = Number(dom.aiDuration.value) || 60;
+    const defaultPriority = dom.aiPriority.value || '中';
+    const draftMode = !!dom.aiDraftToggle.checked;
+    const result = aiScheduleTasks(text, { defaultDuration: defaultDur, defaultPriority, draftMode });
+    if (draftMode && Array.isArray(result)) {
+      renderScheduleDraft(result);
+      dom.aiResponse.textContent = `已產生 ${result.length} 筆排程草案，請在下方檢視並接受或編輯。`;
+    } else {
+      dom.aiResponse.textContent = result;
+    }
     return;
   }
   const normalized = text.replace(/，/g, ',').replace(/。/g, '.');
@@ -664,19 +690,39 @@ function getNextWeekday(targetDay) {
 
 // ------------ Line Notify & Reminder scheduling (session demo) ------------
 async function sendLineNotify(token, message) {
-  // Attempts to call LINE Notify directly from browser. If CORS blocked, use GAS/proxy.
-  const params = new URLSearchParams();
-  params.append('message', message);
-  const res = await fetch('https://notify-api.line.me/api/notify', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`LINE API ${res.status} ${text}`);
+  // Route through GAS for CORS and backend relay support
+  if (!GAS_WEBHOOK_URL || GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
+    // fallback: try direct browser request (may fail due to CORS)
+    try {
+      const params = new URLSearchParams();
+      params.append('message', message);
+      const res = await fetch('https://notify-api.line.me/api/notify', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+      if (!res.ok) throw new Error(`LINE API ${res.status}`);
+      return 'Line Notify 傳送成功（直接）。';
+    } catch (e) {
+      throw new Error(`無法傳送：未設定 GAS_WEBHOOK_URL 或 CORS 阻擋。請在 script.js 設定 GAS_WEBHOOK_URL。`);
+    }
   }
-  return 'Line Notify 傳送成功。';
+  // use GAS relay
+  const res = await fetch(GAS_WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'sendLineNotify',
+      lineToken: token,
+      message: message
+    }),
+  });
+  const json = await res.json();
+  if (json.status === 'ok') {
+    return '✓ Line Notify 傳送成功（透過 GAS）。';
+  } else {
+    throw new Error(json.message || 'LINE Notify 傳送失敗');
+  }
 }
 
 function scheduleReminderForEvent(event) {
@@ -707,40 +753,62 @@ function scheduleAllSessionReminders() {
 
 // ------------ AI 智慧排程（簡單版） ------------
 function aiScheduleTasks(text) {
-  // Expect commands like: "幫我排 完成APCS、數學考試" or "排定 APCS 與 數學"
+  // new signature: aiScheduleTasks(text, { defaultDuration, defaultPriority, draftMode })
+  const opts = arguments[1] || {};
+  const defaultDuration = Number(opts.defaultDuration) || 60;
+  const defaultPriority = opts.defaultPriority || '中';
+  const draftMode = !!opts.draftMode;
   const payload = text.replace(/幫我排|排定|安排/g, '').trim();
   if (!payload) return '未偵測到要排程的任務。請輸入類似「幫我排 完成APCS還有數學考試」';
-  const tasks = payload.split(/[,，、和與]/).map((s) => s.trim()).filter(Boolean);
-  if (!tasks.length) return '未偵測到任務列表。';
+  const rawTasks = payload.split(/[,，、和與]/).map((s) => s.trim()).filter(Boolean);
+  if (!rawTasks.length) return '未偵測到任務列表。';
 
   const created = [];
   const now = new Date();
-  // search next 7 days for free slots
   const horizonDays = 7;
-  const defaultDurationMin = 60;
-  tasks.forEach((task, idx) => {
+
+  rawTasks.forEach((raw, idx) => {
+    // parse inline duration like "APCS(90)" or "APCS 90m" and priority like "APCS:高"
+    let title = raw;
+    let dur = defaultDuration;
+    let pr = defaultPriority;
+    const mDur = raw.match(/\((\d+)\)|\b(\d+)m\b/);
+    if (mDur) {
+      dur = Number(mDur[1] || mDur[2]);
+      title = title.replace(mDur[0], '').trim();
+    }
+    const mPr = raw.match(/[:：]\s*(高|中|低)/);
+    if (mPr) {
+      pr = mPr[1];
+      title = title.replace(mPr[0], '').trim();
+    }
+
     let scheduled = false;
     for (let d = 0; d < horizonDays && !scheduled; d += 1) {
       const date = addDays(now, d);
-      const freeSlots = findFreeSlotsOnDate(date, 8, 22); // from 08:00 to 22:00
+      const freeSlots = findFreeSlotsOnDate(date, 8, 22);
       for (const slot of freeSlots) {
         const slotMinutes = (slot.end - slot.start) / 60000;
-        if (slotMinutes >= defaultDurationMin) {
+        if (slotMinutes >= dur) {
           const startDate = new Date(slot.start);
-          const endDate = new Date(startDate.getTime() + defaultDurationMin * 60 * 1000);
+          const endDate = new Date(startDate.getTime() + dur * 60 * 1000);
           const ev = {
             id: Date.now() + idx + d * 1000,
-            title: task,
+            title: title,
             start: `${formatISODate(startDate)}T${String(startDate.getHours()).padStart(2, '0')}:${String(startDate.getMinutes()).padStart(2, '0')}`,
             end: `${formatISODate(endDate)}T${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`,
             allDay: false,
             category: '私事',
             remind: '30',
             recurring: 'none',
-            description: 'AI 自動排程',
+            description: `AI 自動排程 (優先:${pr}，預設時長:${dur}分)`,
+            priority: pr,
+            duration: dur,
           };
-          state.events.push(ev);
-          scheduleReminderForEvent(ev);
+          if (!draftMode) {
+            state.events.push(ev);
+            scheduleReminderForEvent(ev);
+          }
           created.push(ev);
           scheduled = true;
           break;
@@ -750,7 +818,154 @@ function aiScheduleTasks(text) {
   });
   render();
   if (!created.length) return '在未來 7 天內找不到合適的空檔。';
-  return `已排定 ${created.length} 個任務：\n${created.map((c) => `${c.title} ${formatShortDate(parseISO(c.start))} ${toTimeString(c.start)}`).join('\n')}`;
+  return created;
+}
+
+// render editable schedule draft
+function renderScheduleDraft(drafts) {
+  state.draftSchedule = drafts.slice();
+  dom.aiDraft.innerHTML = '';
+  const list = document.createElement('div');
+  list.style.display = 'grid';
+  list.style.gap = '8px';
+  drafts.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+    row.innerHTML = `
+      <input data-idx="${i}" class="draft-title" value="${escapeHtml(d.title)}" style="flex:1;padding:6px;border-radius:8px;border:1px solid var(--border)" />
+      <input data-idx="${i}" class="draft-duration" value="${d.duration || 60}" style="width:70px;padding:6px;border-radius:8px;border:1px solid var(--border)" />
+      <select data-idx="${i}" class="draft-priority" style="width:80px">
+        <option ${d.priority==='高'?'selected':''}>高</option>
+        <option ${d.priority==='中'?'selected':''}>中</option>
+        <option ${d.priority==='低'?'selected':''}>低</option>
+      </select>
+      <button data-idx="${i}" class="draft-apply" style="background:var(--primary);color:#fff;border:none;padding:6px 8px;border-radius:8px">套用</button>
+      <button data-idx="${i}" class="draft-remove" style="background:#ccc;color:#111;border:none;padding:6px 8px;border-radius:8px">移除</button>
+    `;
+    list.appendChild(row);
+  });
+  const actions = document.createElement('div');
+  actions.style.display = 'flex';
+  actions.style.gap = '8px';
+  actions.style.marginTop = '8px';
+  const accept = document.createElement('button');
+  accept.textContent = '接受並建立所有排程';
+  accept.style.background = 'var(--success)';
+  accept.style.color = '#fff';
+  accept.style.border = 'none';
+  accept.style.padding = '8px 12px';
+  accept.style.borderRadius = '8px';
+  accept.addEventListener('click', acceptDraft);
+  const discard = document.createElement('button');
+  discard.textContent = '放棄草案';
+  discard.style.background = '#f3f4f6';
+  discard.style.padding = '8px 12px';
+  discard.style.borderRadius = '8px';
+  discard.addEventListener('click', discardDraft);
+  actions.appendChild(accept);
+  actions.appendChild(discard);
+  dom.aiDraft.appendChild(list);
+  dom.aiDraft.appendChild(actions);
+
+  // attach events for apply/remove
+  dom.aiDraft.querySelectorAll('.draft-apply').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const idx = Number(e.currentTarget.dataset.idx);
+      const titleEl = dom.aiDraft.querySelector(`.draft-title[data-idx="${idx}"]`);
+      const durEl = dom.aiDraft.querySelector(`.draft-duration[data-idx="${idx}"]`);
+      const prEl = dom.aiDraft.querySelector(`.draft-priority[data-idx="${idx}"]`);
+      const d = state.draftSchedule[idx];
+      d.title = titleEl.value.trim() || d.title;
+      d.duration = Number(durEl.value) || d.duration || 60;
+      d.priority = prEl.value || d.priority || '中';
+      // update description and preview
+      d.description = `AI 自動排程 (優先:${d.priority}，預設時長:${d.duration}分)`;
+      dom.aiResponse.textContent = `已更新草案 ${d.title}`;
+    });
+  });
+  dom.aiDraft.querySelectorAll('.draft-remove').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const idx = Number(e.currentTarget.dataset.idx);
+      state.draftSchedule.splice(idx, 1);
+      renderScheduleDraft(state.draftSchedule);
+    });
+  });
+}
+
+function escapeHtml(str) {
+  return (str+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function acceptDraft() {
+  if (!state.draftSchedule || !state.draftSchedule.length) {
+    dom.aiResponse.textContent = '目前沒有草案可接受。';
+    return;
+  }
+  const created = [];
+  state.draftSchedule.forEach((d) => {
+    const ev = { ...d };
+    ev.id = Date.now() + Math.floor(Math.random() * 10000);
+    state.events.push(ev);
+    scheduleReminderForEvent(ev);
+    created.push(ev);
+  });
+  // send created events to GAS (Google Sheet)
+  (async () => {
+    try {
+      if (!GAS_WEBHOOK_URL || GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
+        dom.aiResponse.textContent = `✓ 已建立 ${created.length} 筆事件（尚未同步到 Google Sheet，請在 script.js 設定 GAS_WEBHOOK_URL）。`;
+      } else {
+        dom.aiResponse.textContent = '正在保存草案到 Google Sheet...';
+        const resp = await fetch(GAS_WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'saveEvents', events: created }),
+        });
+        const json = await resp.json();
+        if (json.status === 'ok') {
+          const data = json.data || {};
+          const rowInfo = data.rowRange ? ` (行 ${data.rowRange.from} - ${data.rowRange.to})` : '';
+          dom.aiResponse.textContent = `✓ 已建立 ${data.saved || created.length} 筆事件，並保存至 Google Sheet${rowInfo}。`;
+          // optionally send notification via GAS if token exists
+          const token = localStorage.getItem('line_notify_token');
+          if (token) {
+            try {
+              const notifyResp = await fetch(GAS_WEBHOOK_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'sendLineNotify',
+                  lineToken: token,
+                  message: `已建立 ${created.length} 筆排程事件到行事曆。`
+                }),
+              });
+              const notifyJson = await notifyResp.json();
+              if (notifyJson.status === 'ok') {
+                dom.aiResponse.textContent += ' 並已通知到 Line。';
+              }
+            } catch (e) {
+              // ignore notify errors
+            }
+          }
+        } else {
+          throw new Error(json.message);
+        }
+      }
+    } catch (err) {
+      dom.aiResponse.textContent = `✓ 已建立 ${created.length} 筆事件，但同步到 Google Sheet 失敗：${err.message}`;
+    }
+  })();
+  state.draftSchedule = [];
+  dom.aiDraft.innerHTML = '';
+  render();
+}
+
+function discardDraft() {
+  state.draftSchedule = [];
+  dom.aiDraft.innerHTML = '';
+  dom.aiResponse.textContent = '已放棄草案。';
 }
 
 function findFreeSlotsOnDate(date, fromHour = 8, toHour = 22) {

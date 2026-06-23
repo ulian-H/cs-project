@@ -56,8 +56,22 @@
         <section class="panel ai-panel">
           <h2>AI 助手</h2>
           <textarea id="ai-input" placeholder="例如：下週三下午三點跟老師討論專題"></textarea>
-          <button id="ai-action-btn" type="button">解析並建立</button>
+          <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+            <label style="font-size:13px">預設時長 (分)
+              <input id="ai-duration" type="number" min="10" value="60" style="width:80px;margin-left:6px" />
+            </label>
+            <label style="font-size:13px">預設優先
+              <select id="ai-priority" style="margin-left:6px">
+                <option value="高">高</option>
+                <option value="中" selected>中</option>
+                <option value="低">低</option>
+              </select>
+            </label>
+            <label style="font-size:13px;margin-left:6px"><input id="ai-draft-toggle" type="checkbox" /> 產生排程草案可編輯</label>
+          </div>
+          <button id="ai-action-btn" type="button" style="margin-top:8px">解析並建立</button>
           <div id="ai-response" class="ai-response"></div>
+          <div id="ai-draft" class="ai-response" style="margin-top:12px"></div>
         </section>
         <section class="panel integration-panel">
           <h2>整合 / 通知</h2>
