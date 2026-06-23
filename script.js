@@ -1,12 +1,41 @@
 const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
-const CATEGORY_CLASSES = { 學校: 'school', APCS: 'apcs', 社團: 'club', 私事: 'personal' };
+const CATEGORY_COLOR_KEYS = ['blue', 'red', 'green', 'orange', 'purple', 'teal', 'pink', 'lime', 'indigo', 'gray'];
+const CATEGORY_KEY_TO_LABEL = {
+  blue: '藍色',
+  red: '紅色',
+  green: '綠色',
+  orange: '橘色',
+  purple: '紫色',
+  teal: '青色',
+  pink: '粉色',
+  lime: '黃綠',
+  indigo: '靛藍',
+  gray: '灰色'
+};
+const LEGACY_CATEGORY_NAME_TO_KEY = {
+  藍色: 'blue',
+  紅色: 'red',
+  綠色: 'green',
+  橘色: 'orange',
+  紫色: 'purple',
+  青色: 'teal',
+  粉色: 'pink',
+  黃綠: 'lime',
+  靛藍: 'indigo',
+  灰色: 'gray',
+  學校: 'blue',
+  APCS: 'red',
+  社團: 'green',
+  私事: 'orange'
+};
+const DEFAULT_CATEGORY_LABELS = ['藍色', '紅色', '綠色', '橘色', '紫色', '青色', '粉色', '黃綠', '靛藍', '灰色'];
 
 const state = {
   view: 'month',
   currentDate: new Date(),
   events: [],
   editingEventId: null,
-  apiEndpoint: 'mock-events.json'
+  categoryLabels: []
 };
 
 const dom = {};
@@ -26,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   dom.eventEnd = document.getElementById('event-end');
   dom.eventAllDay = document.getElementById('event-all-day');
   dom.eventCategory = document.getElementById('event-category');
+  dom.categoryList = document.getElementById('category-list');
   dom.eventRemind = document.getElementById('event-remind');
   dom.eventRecurring = document.getElementById('event-recurring');
   dom.eventDesc = document.getElementById('event-desc');
@@ -36,7 +66,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('prev-btn').addEventListener('click', goPrevious);
   document.getElementById('next-btn').addEventListener('click', goNext);
   document.getElementById('open-event-btn').addEventListener('click', () => openEventModal());
-  document.getElementById('api-load-btn').addEventListener('click', loadEventsFromApi);
   document.getElementById('sync-sheet-btn').addEventListener('click', syncAllEventsToSheet);
   document.getElementById('close-modal-btn').addEventListener('click', closeEventModal);
   dom.saveEventBtn.addEventListener('click', saveEventFromForm);
@@ -51,38 +80,40 @@ document.addEventListener('DOMContentLoaded', () => {
   dom.aiDraftToggle = document.getElementById('ai-draft-toggle');
   dom.aiDraft = document.getElementById('ai-draft');
 
-  // Line Notify UI handlers
-  dom.lineTokenInput = document.getElementById('line-token');
-  dom.lineSaveBtn = document.getElementById('line-save-btn');
-  dom.lineSendBtn = document.getElementById('line-send-btn');
-  dom.lineResponse = document.getElementById('line-response');
-  // load saved token
-  const savedToken = localStorage.getItem('line_notify_token');
-  if (savedToken) dom.lineTokenInput.value = savedToken;
-  dom.lineSaveBtn.addEventListener('click', () => {
-    const t = dom.lineTokenInput.value.trim();
-    if (!t) {
-      dom.lineResponse.textContent = '請輸入 token 後再儲存。';
+  // auto-fill example buttons
+  const autoWeatherBtn = document.getElementById('auto-weather-btn');
+  const autoGmailBtn = document.getElementById('auto-gmail-btn');
+  const autoTransportBtn = document.getElementById('auto-transport-btn');
+  if (autoWeatherBtn) autoWeatherBtn.addEventListener('click', demoAutoFillWeather);
+  if (autoGmailBtn) autoGmailBtn.addEventListener('click', demoAutoFillGmail);
+  if (autoTransportBtn) autoTransportBtn.addEventListener('click', demoAutoFillTransport);
+
+  // Integration / notification controls (Google sign-in & Email)
+  dom.googleSignInBtn = document.getElementById('google-signin-btn');
+  dom.googleSignOutBtn = document.getElementById('google-signout-btn');
+  dom.userInfo = document.getElementById('user-info');
+  dom.notifyEmail = document.getElementById('notify-email');
+  dom.testEmailBtn = document.getElementById('test-email-btn');
+  if (dom.googleSignInBtn) dom.googleSignInBtn.addEventListener('click', () => signInWithGoogle());
+  if (dom.googleSignOutBtn) dom.googleSignOutBtn.addEventListener('click', () => signOutGoogle());
+  if (dom.testEmailBtn) dom.testEmailBtn.addEventListener('click', async () => {
+    const email = dom.notifyEmail ? dom.notifyEmail.value.trim() : '';
+    if (!email) {
+      if (dom.userInfo) dom.userInfo.textContent = '請先輸入通知 Email。';
       return;
     }
-    localStorage.setItem('line_notify_token', t);
-    dom.lineResponse.textContent = '已儲存 token（僅存在本機瀏覽器）。';
-  });
-  dom.lineSendBtn.addEventListener('click', async () => {
-    const token = dom.lineTokenInput.value.trim() || localStorage.getItem('line_notify_token');
-    if (!token) {
-      dom.lineResponse.textContent = '請先輸入或儲存 Line Notify 權杖。';
-      return;
-    }
-    dom.lineResponse.textContent = '傳送中…';
+    if (dom.userInfo) dom.userInfo.textContent = '正在嘗試寄送測試通知...';
     try {
-      const res = await sendLineNotify(token, '測試通知：這是來自 AI 行事曆的測試訊息。');
-      dom.lineResponse.textContent = res;
-    } catch (err) {
-      dom.lineResponse.textContent = `傳送失敗：${err.message}`;
+      await sendEmailNotification(email, '測試通知：AI 行事曆', '這是一封測試通知，系統設定完成後會改為自動傳送。');
+      if (dom.userInfo) dom.userInfo.textContent = '測試通知已發送（若使用 mailto，請檢查郵件客戶端）。';
+    } catch (e) {
+      if (dom.userInfo) dom.userInfo.textContent = `測試通知失敗：${e.message}`;
     }
   });
 
+  state.categoryLabels = loadCategoryLabels();
+  renderCategoryPanel();
+  updateCategoryOptions();
   state.events = getInitialEvents();
   render();
   scheduleAllSessionReminders();
@@ -90,9 +121,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function getInitialEvents() {
   return [
-    { id: 1, title: 'APCS 練習', start: '2026-07-20T10:00', end: '2026-07-20T11:30', allDay: false, category: 'APCS', remind: '30', recurring: 'weekly', description: '每週二課後練習。' },
-    { id: 2, title: '社團 meeting', start: '2026-07-21T18:30', end: '2026-07-21T20:00', allDay: false, category: '社團', remind: '1440', recurring: 'none', description: '討論專題進度。' },
-    { id: 3, title: '期中考準備', start: '2026-07-22T00:00', end: '2026-07-22T23:59', allDay: true, category: '學校', remind: '1440', recurring: 'none', description: '全天讀書計畫。' }
+    { id: 1, title: 'APCS 練習', start: '2026-07-20T10:00', end: '2026-07-20T11:30', allDay: false, category: '紅色', remind: '30', recurring: 'weekly', description: '每週二課後練習。' },
+    { id: 2, title: '社團 meeting', start: '2026-07-21T18:30', end: '2026-07-21T20:00', allDay: false, category: '綠色', remind: '1440', recurring: 'none', description: '討論專題進度。' },
+    { id: 3, title: '期中考準備', start: '2026-07-22T00:00', end: '2026-07-22T23:59', allDay: true, category: '藍色', remind: '1440', recurring: 'none', description: '全天讀書計畫。' }
   ];
 }
 
@@ -162,7 +193,7 @@ function renderMonthView() {
     events.slice(0, 3).forEach((event) => {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = `event-chip ${CATEGORY_CLASSES[event.category] || ''}`;
+      chip.className = `event-chip ${getCategoryClass(event.category) || ''}`;
       chip.textContent = `${formatEventTime(event)} ${event.title}`;
       chip.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -260,11 +291,77 @@ function formatEventTime(event) {
   return `${toTimeString(event.start)} - ${toTimeString(event.end)}`;
 }
 
+function loadCategoryLabels() {
+  try {
+    const raw = localStorage.getItem('calendar_category_labels');
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(parsed) && parsed.length === CATEGORY_COLOR_KEYS.length) {
+      return parsed.map((label, index) => label || DEFAULT_CATEGORY_LABELS[index]);
+    }
+  } catch (e) {
+    console.warn('載入分類標籤失敗', e);
+  }
+  return [...DEFAULT_CATEGORY_LABELS];
+}
+
+function saveCategoryLabels() {
+  localStorage.setItem('calendar_category_labels', JSON.stringify(state.categoryLabels));
+}
+
+function getCategoryClass(category) {
+  if (!category) return '';
+  if (LEGACY_CATEGORY_NAME_TO_KEY[category]) return LEGACY_CATEGORY_NAME_TO_KEY[category];
+  const index = state.categoryLabels.indexOf(category);
+  if (index !== -1) return CATEGORY_COLOR_KEYS[index];
+  const lowerCategory = category.toLowerCase();
+  if (CATEGORY_COLOR_KEYS.includes(lowerCategory)) return lowerCategory;
+  return '';
+}
+
+function renderCategoryPanel() {
+  if (!dom.categoryList) return;
+  dom.categoryList.innerHTML = '';
+  state.categoryLabels.forEach((label, index) => {
+    const li = document.createElement('li');
+    li.className = 'category-item';
+    const chip = document.createElement('span');
+    chip.className = `chip ${CATEGORY_COLOR_KEYS[index]}`;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = label;
+    input.dataset.index = String(index);
+    input.className = 'category-input';
+    input.addEventListener('input', (e) => {
+      const idx = Number(e.target.dataset.index);
+      const value = e.target.value.trim() || DEFAULT_CATEGORY_LABELS[idx];
+      state.categoryLabels[idx] = value;
+      saveCategoryLabels();
+      updateCategoryOptions();
+      render();
+    });
+    li.appendChild(chip);
+    li.appendChild(input);
+    dom.categoryList.appendChild(li);
+  });
+}
+
+function updateCategoryOptions() {
+  if (!dom.eventCategory) return;
+  dom.eventCategory.innerHTML = '';
+  state.categoryLabels.forEach((label, index) => {
+    const opt = document.createElement('option');
+    opt.value = label;
+    opt.textContent = label;
+    opt.dataset.key = CATEGORY_COLOR_KEYS[index];
+    dom.eventCategory.appendChild(opt);
+  });
+}
+
 function renderSummary() {
   const date = state.currentDate;
   const todayEvents = getEventsInRange(date, date).sort((a, b) => parseISO(a.start) - parseISO(b.start));
   if (!todayEvents.length) {
-    dom.summaryPanel.textContent = '今天沒有事件。你可以添加一個新的事件或從 API 匯入。';
+    dom.summaryPanel.textContent = '';
     return;
   }
   const lines = todayEvents.map((event) => {
@@ -399,32 +496,7 @@ function deleteEventFromForm() {
   render();
 }
 
-function loadEventsFromApi() {
-  dom.aiResponse.textContent = '正在從 API 讀取事件…';
-  fetch(state.apiEndpoint)
-    .then((response) => response.json())
-    .then((data) => {
-      if (!Array.isArray(data)) throw new Error('API 回傳格式錯誤');
-      const imported = data.map((item, index) => ({
-        id: Date.now() + index,
-        title: item.title,
-        start: item.start,
-        end: item.end,
-        allDay: !!item.allDay,
-        category: item.category || '私事',
-        remind: item.remind || '30',
-        recurring: item.recurring || 'none',
-        description: item.description || '',
-      }));
-      state.events = [...state.events, ...imported];
-      dom.aiResponse.textContent = `已成功匯入 ${imported.length} 筆事件。`;
-      render();
-      scheduleAllSessionReminders();
-    })
-    .catch((error) => {
-      dom.aiResponse.textContent = `API 匯入失敗：${error.message}`;
-    });
-}
+
 
 function syncAllEventsToSheet() {
   dom.aiResponse.textContent = '正在同步事件到 Google Sheet…';
@@ -688,58 +760,74 @@ function getNextWeekday(targetDay) {
   return addDays(today, diff + 7);
 }
 
-// ------------ Line Notify & Reminder scheduling (session demo) ------------
-async function sendLineNotify(token, message) {
-  // Route through GAS for CORS and backend relay support
-  if (!GAS_WEBHOOK_URL || GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
-    // fallback: try direct browser request (may fail due to CORS)
-    try {
-      const params = new URLSearchParams();
-      params.append('message', message);
-      const res = await fetch('https://notify-api.line.me/api/notify', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-      if (!res.ok) throw new Error(`LINE API ${res.status}`);
-      return 'Line Notify 傳送成功（直接）。';
-    } catch (e) {
-      throw new Error(`無法傳送：未設定 GAS_WEBHOOK_URL 或 CORS 阻擋。請在 script.js 設定 GAS_WEBHOOK_URL。`);
-    }
-  }
-  // use GAS relay
-  const res = await fetch(GAS_WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'sendLineNotify',
-      lineToken: token,
-      message: message
-    }),
-  });
-  const json = await res.json();
-  if (json.status === 'ok') {
-    return '✓ Line Notify 傳送成功（透過 GAS）。';
-  } else {
-    throw new Error(json.message || 'LINE Notify 傳送失敗');
-  }
+
+// --------- Auto-fill demo functions (mock examples) ---------
+async function demoAutoFillWeather() {
+  dom.aiResponse.textContent = '呼叫天氣 API（模擬）…';
+  // demo: fetch mock weather from mock-events.json or create a fake response
+  const fake = { date: formatISODate(addDays(new Date(), 2)), weather: '雨天' };
+  const note = `⚠ 預測有雨，建議攜帶雨具`;
+  const ev = {
+    id: Date.now(),
+    title: `外出：天氣提醒 ${fake.weather}`,
+    start: `${fake.date}T09:00`,
+    end: `${fake.date}T18:00`,
+    allDay: false,
+    category: '橘色',
+    remind: '60',
+    recurring: 'none',
+    description: note,
+  };
+  state.events.push(ev);
+  dom.aiResponse.textContent = `已根據天氣建立事件：${fake.date} ${note}`;
+  render();
 }
 
+async function demoAutoFillTimetable() {
+  // 已移除：請在後端串接學校課表 API，或使用 Google Classroom / Google Calendar 直接同步。
+  dom.aiResponse.textContent = '課表自動匯入已移除，請改為使用 Google Calendar 同步或後端 API。';
+}
+
+async function demoAutoFillGmail() {
+  dom.aiResponse.textContent = '解析 Gmail 內容（模擬）…請自行在後端串接 Gmail API。';
+  // example: create event from parsed email
+  const date = formatISODate(addDays(new Date(), 20));
+  const ev = { id: Date.now(), title: 'APCS 模擬考', start: `${date}T09:00`, end: `${date}T12:00`, allDay: false, category: '藍色', remind: '1440', recurring: 'none', description: '從 Gmail 解析來的活動。' };
+  state.events.push(ev);
+  dom.aiResponse.textContent = '已從 Gmail 範例創建事件：APCS 模擬考';
+  render();
+}
+
+async function demoAutoFillTransport() {
+  dom.aiResponse.textContent = '查詢交通時間（模擬）…';
+  // demo: if user creates a destination event, compute travel and add reminder
+  const date = formatISODate(addDays(new Date(), 5));
+  const ev = { id: Date.now(), title: '面試 - 高雄醫學大學', start: `${date}T14:00`, end: `${date}T15:00`, allDay: false, category: '藍色', remind: '30', recurring: 'none', description: '面試地點：高雄醫學大學' };
+  state.events.push(ev);
+  // compute travel time mock
+  const travelMinutes = 35;
+  const leaveAt = new Date(`${date}T14:00`);
+  leaveAt.setMinutes(leaveAt.getMinutes() - travelMinutes);
+  const reminder = { id: Date.now()+1, title: `出發提醒：${ev.title}`, start: `${formatISODate(leaveAt)}T${String(leaveAt.getHours()).padStart(2,'0')}:${String(leaveAt.getMinutes()).padStart(2,'0')}`, end: `${formatISODate(leaveAt)}T${String(leaveAt.getHours()).padStart(2,'0')}:${String(leaveAt.getMinutes()).padStart(2,'0')}`, allDay: false, category: '橘色', remind: '0', recurring: 'none', description: `建議 ${travelMinutes} 分鐘出發` };
+  state.events.push(reminder);
+  dom.aiResponse.textContent = `已建立面試行程並新增出發提醒（建議 ${travelMinutes} 分鐘前出發）。`;
+  render();
+}
+
+// ------------ Line Notify & Reminder scheduling (session demo) ------------
 function scheduleReminderForEvent(event) {
   // schedule only for current session as demo
   try {
-    const token = localStorage.getItem('line_notify_token');
-    if (!token) return;
     if (!event.remind || Number(event.remind) === 0) return;
     const remindMinutes = Number(event.remind);
     const start = new Date(event.start);
     const remindAt = new Date(start.getTime() - remindMinutes * 60 * 1000);
     const now = new Date();
     const delay = remindAt - now;
-    if (delay <= 0) return; // pass if already past
+    if (delay <= 0) return;
     setTimeout(() => {
       const msg = `提醒：${event.title} (${formatEventTime(event)})`;
-      sendLineNotify(token, msg).catch((e) => console.warn('LineNotify failed', e));
+      console.log('Reminder:', msg);
     }, delay);
   } catch (e) {
     console.warn('scheduleReminderForEvent error', e);
@@ -749,6 +837,71 @@ function scheduleReminderForEvent(event) {
 // Call this after loading or creating events to schedule session reminders
 function scheduleAllSessionReminders() {
   state.events.forEach((ev) => scheduleReminderForEvent(ev));
+}
+
+// ---------- Email send and Google sign-in helpers (lightweight, fallback) ----------
+async function sendEmailNotification(toEmail, subject, body) {
+  if (!toEmail) throw new Error('需要目標 Email');
+  // Prefer backend via GAS if configured
+  if (GAS_WEBHOOK_URL && !GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
+    try {
+      const res = await fetch(GAS_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sendEmail', to: toEmail, subject, body }) });
+      const json = await res.json();
+      if (json && json.status === 'ok') return true;
+      throw new Error(json && json.message ? json.message : '後端寄信失敗');
+    } catch (e) {
+      // fallback to mailto
+      window.open(`mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+      return true;
+    }
+  }
+  // client fallback
+  window.open(`mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  return true;
+}
+
+function signInWithGoogle() {
+  // lightweight UI-only simulation if Firebase not available
+  if (typeof firebase === 'undefined' || !window.firebaseAuth) {
+    if (dom.userInfo) dom.userInfo.textContent = '模擬登入：使用者已登入（本機）';
+    if (dom.googleSignInBtn) dom.googleSignInBtn.classList.add('hidden');
+    if (dom.googleSignOutBtn) dom.googleSignOutBtn.classList.remove('hidden');
+    return;
+  }
+  try {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    firebase.auth().signInWithPopup(provider).then((result) => {
+      const user = result.user;
+      if (dom.userInfo) dom.userInfo.textContent = `${user.displayName || user.email}（已登入）`;
+      if (dom.googleSignInBtn) dom.googleSignInBtn.classList.add('hidden');
+      if (dom.googleSignOutBtn) dom.googleSignOutBtn.classList.remove('hidden');
+      if (dom.notifyEmail && user.email) dom.notifyEmail.value = user.email;
+    }).catch((err) => {
+      if (dom.userInfo) dom.userInfo.textContent = `登入失敗：${err.message}`;
+    });
+  } catch (e) {
+    if (dom.userInfo) dom.userInfo.textContent = `登入例外：${e.message}`;
+  }
+}
+
+function signOutGoogle() {
+  if (typeof firebase === 'undefined' || !window.firebaseAuth) {
+    if (dom.userInfo) dom.userInfo.textContent = '';
+    if (dom.googleSignInBtn) dom.googleSignInBtn.classList.remove('hidden');
+    if (dom.googleSignOutBtn) dom.googleSignOutBtn.classList.add('hidden');
+    return;
+  }
+  try {
+    firebase.auth().signOut().then(() => {
+      if (dom.userInfo) dom.userInfo.textContent = '';
+      if (dom.googleSignInBtn) dom.googleSignInBtn.classList.remove('hidden');
+      if (dom.googleSignOutBtn) dom.googleSignOutBtn.classList.add('hidden');
+    }).catch((e) => {
+      if (dom.userInfo) dom.userInfo.textContent = `登出失敗：${e.message}`;
+    });
+  } catch (e) {
+    console.warn('signOut error', e);
+  }
 }
 
 // ------------ AI 智慧排程（簡單版） ------------
@@ -928,27 +1081,6 @@ function acceptDraft() {
           const data = json.data || {};
           const rowInfo = data.rowRange ? ` (行 ${data.rowRange.from} - ${data.rowRange.to})` : '';
           dom.aiResponse.textContent = `✓ 已建立 ${data.saved || created.length} 筆事件，並保存至 Google Sheet${rowInfo}。`;
-          // optionally send notification via GAS if token exists
-          const token = localStorage.getItem('line_notify_token');
-          if (token) {
-            try {
-              const notifyResp = await fetch(GAS_WEBHOOK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'sendLineNotify',
-                  lineToken: token,
-                  message: `已建立 ${created.length} 筆排程事件到行事曆。`
-                }),
-              });
-              const notifyJson = await notifyResp.json();
-              if (notifyJson.status === 'ok') {
-                dom.aiResponse.textContent += ' 並已通知到 Line。';
-              }
-            } catch (e) {
-              // ignore notify errors
-            }
-          }
         } else {
           throw new Error(json.message);
         }

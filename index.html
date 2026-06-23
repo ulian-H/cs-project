@@ -10,9 +10,8 @@
   <div class="calendar-app">
     <header class="app-header">
       <div>
-        <p class="badge">MVP</p>
         <h1>AI 智慧行事曆</h1>
-        <p>支援月/週/日檢視、事件管理、API 自動匯入、Google Sheet 同步與簡易 AI 自然語言。</p>
+        <p>支援月/週/日檢視、事件管理、Google Sheet 同步與簡易 AI 自然語言。</p>
       </div>
       <div class="header-actions">
         <button id="prev-btn" type="button">← 上一個</button>
@@ -30,7 +29,6 @@
       <section class="calendar-panel">
         <div class="calendar-toolbar">
           <button id="open-event-btn" type="button">新增事件</button>
-          <button id="api-load-btn" type="button">從 API 匯入事件</button>
           <button id="sync-sheet-btn" type="button">同步到 Google Sheet</button>
         </div>
         <div id="calendar-grid" class="calendar-grid"></div>
@@ -40,22 +38,22 @@
       <aside class="sidebar">
         <section class="panel">
           <h2>今日摘要</h2>
-          <div id="summary-panel" class="summary-panel">請選擇檢視或匯入事件開始。</div>
+          <div id="summary-panel" class="summary-panel"></div>
         </section>
 
         <section class="panel categories-panel">
           <h2>顏色分類</h2>
-          <ul class="category-list">
-            <li><span class="chip school"></span>學校</li>
-            <li><span class="chip apcs"></span>APCS</li>
-            <li><span class="chip club"></span>社團</li>
-            <li><span class="chip personal"></span>私事</li>
-          </ul>
+          <ul class="category-list" id="category-list"></ul>
         </section>
 
         <section class="panel ai-panel">
           <h2>AI 助手</h2>
           <textarea id="ai-input" placeholder="例如：下週三下午三點跟老師討論專題"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button id="auto-weather-btn" type="button">天氣自動填入</button>
+            <button id="auto-gmail-btn" type="button">Gmail 解析範例</button>
+            <button id="auto-transport-btn" type="button">交通時間查詢</button>
+          </div>
           <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
             <label style="font-size:13px">預設時長 (分)
               <input id="ai-duration" type="number" min="10" value="60" style="width:80px;margin-left:6px" />
@@ -75,12 +73,28 @@
         </section>
         <section class="panel integration-panel">
           <h2>整合 / 通知</h2>
-          <label>Line Notify 權杖 (Token)
-            <input id="line-token" type="text" placeholder="輸入 Line Notify 權杖 (可先測試)" />
-          </label>
-          <button id="line-save-btn" type="button">儲存權杖</button>
-          <button id="line-send-btn" type="button">測試傳送通知</button>
-          <div id="line-response" class="ai-response" style="margin-top:8px"></div>
+          <div style="display:flex;gap:12px;align-items:flex-start">
+            <div style="min-width:120px">
+              <a href="https://line.me/R/ti/p/%40791ukcov" target="_blank" rel="noopener">
+                <img id="integration-qr" src="qr.svg" alt="LINE QR Code" style="width:120px;height:auto;border-radius:8px;border:1px solid var(--border)" />
+              </a>
+              <div style="font-size:12px;color:var(--muted);margin-top:6px">掃描或點擊開啟 LINE</div>
+            </div>
+            <div style="flex:1">
+              <div id="auth-area">
+                <button id="google-signin-btn" type="button">以 Google 登入</button>
+                <button id="google-signout-btn" type="button" class="hidden">登出</button>
+                <div id="user-info" style="margin-top:8px;color:var(--muted)"></div>
+              </div>
+              <div style="margin-top:12px">
+                <label>通知 Email (接收提醒)
+                  <input id="notify-email" type="email" placeholder="example@gmail.com" />
+                </label>
+                <button id="test-email-btn" type="button">測試寄信通知</button>
+              </div>
+            </div>
+          </div>
+          <p style="margin-top:8px;color:var(--muted)">這是 Line 的 AI 機器人。</p>
         </section>
       </aside>
     </main>
@@ -100,12 +114,7 @@
           </div>
           <label class="checkbox-label"><input id="event-all-day" type="checkbox" /> 全天事件</label>
           <label>分類
-            <select id="event-category">
-              <option value="學校">學校</option>
-              <option value="APCS">APCS</option>
-              <option value="社團">社團</option>
-              <option value="私事">私事</option>
-            </select>
+            <select id="event-category"></select>
           </label>
           <label>提醒
             <select id="event-remind">

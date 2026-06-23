@@ -229,11 +229,20 @@ button:hover {
   display: grid;
   gap: 10px;
 }
-.category-list li {
-  display: flex;
+.category-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 10px;
-  color: var(--muted);
+}
+.category-input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: var(--text);
 }
 .chip {
   width: 18px;
@@ -241,17 +250,35 @@ button:hover {
   border-radius: 999px;
   display: inline-block;
 }
-.chip.school {
-  background: var(--school);
+.chip.blue {
+  background: #2563eb;
 }
-.chip.apcs {
-  background: var(--apcs);
+.chip.red {
+  background: #ef4444;
 }
-.chip.club {
-  background: var(--club);
+.chip.green {
+  background: #10b981;
 }
-.chip.personal {
-  background: var(--personal);
+.chip.orange {
+  background: #f59e0b;
+}
+.chip.purple {
+  background: #8b5cf6;
+}
+.chip.teal {
+  background: #14b8a6;
+}
+.chip.pink {
+  background: #ec4899;
+}
+.chip.lime {
+  background: #84cc16;
+}
+.chip.indigo {
+  background: #4f46e5;
+}
+.chip.gray {
+  background: #6b7280;
 }
 .ai-panel textarea {
   width: 100%;
