@@ -1,4 +1,4 @@
-const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzs4MSwZNdLLUXye_faDmADmFnAcq4VnmEWCUfpuGf2qT3zWFqqpWgQkiUqMhDcc3SvIg/exec';
 const CATEGORY_COLOR_KEYS = ['blue', 'red', 'green', 'orange', 'purple', 'teal', 'pink', 'lime', 'indigo', 'gray'];
 const CATEGORY_KEY_TO_LABEL = {
   blue: '藍色',
@@ -82,10 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // auto-fill example buttons
   const autoWeatherBtn = document.getElementById('auto-weather-btn');
-  const autoGmailBtn = document.getElementById('auto-gmail-btn');
   const autoTransportBtn = document.getElementById('auto-transport-btn');
   if (autoWeatherBtn) autoWeatherBtn.addEventListener('click', demoAutoFillWeather);
-  if (autoGmailBtn) autoGmailBtn.addEventListener('click', demoAutoFillGmail);
   if (autoTransportBtn) autoTransportBtn.addEventListener('click', demoAutoFillTransport);
 
   // Integration / notification controls (Google sign-in & Email)
@@ -117,13 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
   state.events = getInitialEvents();
   render();
   scheduleAllSessionReminders();
+  //  改成「每 3 秒鐘自動向雲端同步一次」
+  setInterval(syncFromGoogleSheet, 3000);
 });
 
 function getInitialEvents() {
   return [
-    { id: 1, title: 'APCS 練習', start: '2026-07-20T10:00', end: '2026-07-20T11:30', allDay: false, category: '紅色', remind: '30', recurring: 'weekly', description: '每週二課後練習。' },
-    { id: 2, title: '社團 meeting', start: '2026-07-21T18:30', end: '2026-07-21T20:00', allDay: false, category: '綠色', remind: '1440', recurring: 'none', description: '討論專題進度。' },
-    { id: 3, title: '期中考準備', start: '2026-07-22T00:00', end: '2026-07-22T23:59', allDay: true, category: '藍色', remind: '1440', recurring: 'none', description: '全天讀書計畫。' }
+    { id: 1, title: 'APCS 練習', start: '2026-07-20T10:00', end: '2026-07-20T11:30', allDay: false, category: '紅色', remind: '30', recurring: 'weekly', description: '每週二課後練習。' }
   ];
 }
 
@@ -788,16 +786,6 @@ async function demoAutoFillTimetable() {
   dom.aiResponse.textContent = '課表自動匯入已移除，請改為使用 Google Calendar 同步或後端 API。';
 }
 
-async function demoAutoFillGmail() {
-  dom.aiResponse.textContent = '解析 Gmail 內容（模擬）…請自行在後端串接 Gmail API。';
-  // example: create event from parsed email
-  const date = formatISODate(addDays(new Date(), 20));
-  const ev = { id: Date.now(), title: 'APCS 模擬考', start: `${date}T09:00`, end: `${date}T12:00`, allDay: false, category: '藍色', remind: '1440', recurring: 'none', description: '從 Gmail 解析來的活動。' };
-  state.events.push(ev);
-  dom.aiResponse.textContent = '已從 Gmail 範例創建事件：APCS 模擬考';
-  render();
-}
-
 async function demoAutoFillTransport() {
   dom.aiResponse.textContent = '查詢交通時間（模擬）…';
   // demo: if user creates a destination event, compute travel and add reminder
@@ -1134,4 +1122,66 @@ function suggestReschedule(event) {
     }
   }
   return null;
+}
+
+// 把你的 script.js 第 1 行換成這樣：
+const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzs4MSwZNdLLUXye_faDmADmFnAcq4VnmEWCUfpuGf2qT3zWFqqpWgQkiUqMhDcc3SvIg/exec';
+// ==========================================
+// 🚀 新增：從 Google Sheet 抓取資料並更新行事曆
+// ==========================================
+async function syncFromGoogleSheet() {
+  try {
+    if(dom.aiResponse) dom.aiResponse.textContent = "🔄 正在從 Google Sheet 載入最新行程...";
+
+    // 1. 向 GAS 要資料
+    const response = await fetch(GAS_WEBHOOK_URL);
+    const data = await response.json();
+
+    if (data.error) throw new Error(data.error);
+
+    // 2. 將試算表的簡單資料，轉換成你行事曆 UI 需要的格式
+    const sheetEvents = data.map((item, index) => {
+      // 處理時間格式 (確保它是 HH:mm)
+      let timeStr = "12:00";
+      if (item.time) {
+        if (item.time.toString().includes('T')) {
+            const d = new Date(item.time);
+            timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        } else {
+            timeStr = item.time.toString().slice(0, 5);
+        }
+      }
+
+      // 預設結束時間為開始時間 + 1小時
+      const [hour, minute] = timeStr.split(':').map(Number);
+      const endDate = new Date(new Date(`${item.date}T00:00:00`).setHours((hour || 12) + 1, minute || 0));
+      const endTimeStr = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+
+      // 轉換成你 state.events 需要的物件結構
+      return {
+        id: Date.now() + index, 
+        title: item.title || '未命名事件',
+        start: `${item.date}T${timeStr}`,
+        end: `${item.date}T${endTimeStr}`,
+        allDay: false,
+        category: '藍色', // 預設用藍色標籤
+        remind: '30',
+        recurring: 'none',
+        description: item.desc || '來自 LINE 助理'
+      };
+    });
+
+    // 3. 把轉換好的資料塞進網頁狀態，並重新畫畫面！
+    if (sheetEvents.length > 0) {
+      state.events = sheetEvents; // 覆蓋原本寫死的範例資料
+      render(); // 重新渲染行事曆
+      scheduleAllSessionReminders();
+    }
+
+    if(dom.aiResponse) dom.aiResponse.textContent = `✓ 成功同步！已從雲端載入 ${sheetEvents.length} 筆行程。`;
+
+  } catch (error) {
+    console.error("❌ 同步失敗:", error);
+    if(dom.aiResponse) dom.aiResponse.textContent = "❌ 讀取資料庫失敗，請稍後再試。";
+  }
 }
