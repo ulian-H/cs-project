@@ -119,11 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(syncFromGoogleSheet, 3000);
 });
 
-function getInitialEvents() {
-  return [
-    { id: 1, title: 'APCS 練習', start: '2026-07-20T10:00', end: '2026-07-20T11:30', allDay: false, category: '紅色', remind: '30', recurring: 'weekly', description: '每週二課後練習。' }
-  ];
-}
+
 
 function render() {
   updateViewButtons();
