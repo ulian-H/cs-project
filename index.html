@@ -97,50 +97,6 @@
         </section>
       </aside>
     </main>
-</main> <div id="event-modal" class="modal hidden">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2 id="modal-title">新增事件</h2>
-          <button id="close-modal-btn" class="close-btn" type="button">×</button>
-        </div>
-        <form id="event-form">
-          <label>標題 <input id="event-title" type="text" required /></label>
-          <label>日期 <input id="event-date" type="date" required /></label>
-          <div class="row-gap">
-            <label>開始時間 <input id="event-start" type="time" /></label>
-            <label>結束時間 <input id="event-end" type="time" /></label>
-          </div>
-          <label class="checkbox-label"><input id="event-all-day" type=\"checkbox\" /> 全天事件</label>
-          <label>分類
-            <select id="event-category"></select>
-          </label>
-          <label>提醒
-            <select id="event-remind">
-              <option value="0">不提醒</option>
-              <option value="5">提前 5 分鐘</option>
-              <option value="30">提前 30 分鐘</option>
-              <option value="1440">提前 1 天</option>
-            </select>
-          </label>
-          <label>重複
-            <select id="event-recurring">
-              <option value="none">無</option>
-              <option value="daily">每天</option>
-              <option value="weekly">每週</option>
-              <option value="monthly">每月</option>
-            </select>
-          </label>
-          <label>描述 <textarea id="event-desc" placeholder="事件細節，可選填"></textarea></label>
-          <div class="modal-actions">
-            <button id="save-event-btn" type="button">存檔</button>
-            <button id="delete-event-btn" type="button" class="danger hidden">刪除</button>
-          </div>
-        </form>
-      </div>
-    </div>
-    </div> <script src="script.js"></script>
-</body>
-</html>
     <div id="event-modal" class="modal hidden" aria-hidden="true">
       <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="modal-title">
         <div class="modal-header">
@@ -183,7 +139,7 @@
         </form>
       </div>
     </div>
-  </div>
-  <script src="script.js"></script>
+    
+  </div> <script src="script.js"></script>
 </body>
 </html>
