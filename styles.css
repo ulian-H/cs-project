@@ -410,3 +410,99 @@ button:hover {
     align-items: stretch;
   }
 }
+/* ==========================================
+   🔥 補上日曆本體與月/週/日檢視的排版樣式 
+   ========================================== */
+#calendar-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  min-height: 500px;
+}
+
+/* 月檢視：7 欄網格 */
+.month-view {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+.month-day-header {
+  text-align: center;
+  font-weight: bold;
+  padding: 8px 0;
+  color: var(--muted);
+  border-bottom: 2px solid var(--border);
+}
+.calendar-day {
+  min-height: 90px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 6px;
+  background: #fafafa;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.calendar-day.current-month {
+  background: var(--surface);
+}
+.calendar-day.today {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+.day-number {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* 週/日檢視排版 */
+.week-view, .day-view {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.view-row {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+  align-items: flex-start;
+}
+.view-row-label {
+  width: 100px;
+  font-weight: bold;
+  color: var(--muted);
+}
+.view-row-content {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 事件標籤樣式 */
+.event-item {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #fff;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* 分類顏色對應 */
+.event-item.blue   { background-color: #3b82f6; }
+.event-item.red    { background-color: #ef4444; }
+.event-item.green  { background-color: #10b981; }
+.event-item.orange { background-color: #f59e0b; }
+.event-item.purple { background-color: #8b5cf6; }
+.event-item.teal   { background-color: #14b8a6; }
+.event-item.pink   { background-color: #ec4899; }
+.event-item.lime   { background-color: #84cc16; }
+.event-item.indigo { background-color: #6366f1; }
+.event-item.gray   { background-color: #6b7280; }
