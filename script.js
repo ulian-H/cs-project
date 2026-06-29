@@ -839,32 +839,37 @@ function scheduleAllSessionReminders() {
 }
 
 // ---------- Email send and Google sign-in helpers (lightweight, fallback) ----------
+// ==========================================
+// 1. 背景寄信功能 (加入容錯機制)
+// ==========================================
 async function sendEmailNotification(toEmail, subject, body) {
   if (!toEmail) throw new Error('需要目標 Email');
   
   if (GAS_WEBHOOK_URL && !GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
     try {
-      // 🚀 修正 1：改用 'text/plain'，徹底繞過瀏覽器的 CORS Preflight (OPTIONS) 預檢封鎖！
       const res = await fetch(GAS_WEBHOOK_URL, { 
         method: 'POST', 
+        // 保持 text/plain 繞過 CORS
         headers: { 'Content-Type': 'text/plain' }, 
         body: JSON.stringify({ 
           action: 'sendEmail', 
-          email: toEmail, // 🚀 修正 2：欄位從 to 改成 email，精準對齊 GAS 後端
+          email: toEmail, 
           subject: subject, 
           body: body 
         }) 
       });
       
       const text = await res.text(); 
-      if (text.includes("successfully") || text.includes("Email sent")) {
+      
+      // 🎯 修正：加入 "OK" 的容錯判斷。
+      // (註：如果一直回傳 OK 但沒收到信，代表你 GAS 忘記發布「新版本」囉！)
+      if (text.includes("successfully") || text.includes("Email sent") || text.trim() === "OK") {
         alert("🎉 背景自動寄信成功！請去信箱收信（若沒看到可檢查垃圾信件匣）");
         return true;
       }
       throw new Error('後端回傳失敗訊息: ' + text);
     } catch (e) {
       console.error("後端寄信發生錯誤:", e);
-      // 🚀 修正 3：徹底拔除 mailto，改用純警告視窗，從此告別煩人的郵件軟體彈窗！
       alert("❌ 透過網頁後端寄信失敗，原因：" + e.message + "\n（已成功攔截 mailto 彈窗，不會再打擾您）");
       return false;
     }
@@ -873,6 +878,21 @@ async function sendEmailNotification(toEmail, subject, body) {
   alert("❌ 尚未設定有效的 GAS_WEBHOOK_URL，無法寄信。");
   return false;
 }
+
+// ==========================================
+// 2. 清空舊版的模擬登入/登出殘骸
+// ==========================================
+function signInWithGoogle() {
+  // ⚠️ 舊版模擬登入已廢棄！
+  // 因為我們已經在檔案最下方實作了真實的 Google 登入 (GIS)，這裡必須為空，才不會衝突。
+  console.log("舊版 signInWithGoogle 被觸發，已停用");
+}
+
+function signOutGoogle() {
+  // ⚠️ 舊版模擬登出已廢棄！
+  console.log("舊版 signOutGoogle 被觸發，已停用");
+}
+
 function signInWithGoogle() {
   // lightweight UI-only simulation if Firebase not available
   if (typeof firebase === 'undefined' || !window.firebaseAuth) {
