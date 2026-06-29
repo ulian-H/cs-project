@@ -827,36 +827,37 @@ function scheduleAllSessionReminders() {
 async function sendEmailNotification(toEmail, subject, body) {
   if (!toEmail) throw new Error('需要目標 Email');
   
-  // 📢 檢查點：請確保你 script.js 最上方的 GAS_WEBHOOK_URL 有填入正確的 GAS 網址！
   if (GAS_WEBHOOK_URL && !GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
     try {
-      // 1. 欄位修正：把 to 改成 email，對齊 GAS 後端
+      // 🚀 修正 1：改用 'text/plain'，徹底繞過瀏覽器的 CORS Preflight (OPTIONS) 預檢封鎖！
       const res = await fetch(GAS_WEBHOOK_URL, { 
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ action: 'sendEmail', email: toEmail, subject, body }) 
+        headers: { 'Content-Type': 'text/plain' }, 
+        body: JSON.stringify({ 
+          action: 'sendEmail', 
+          email: toEmail, // 🚀 修正 2：欄位從 to 改成 email，精準對齊 GAS 後端
+          subject: subject, 
+          body: body 
+        }) 
       });
       
-      // 2. 格式修正：因為 GAS 回傳純文字，這裡改用 text() 接收才不會崩潰
       const text = await res.text(); 
       if (text.includes("successfully") || text.includes("Email sent")) {
-        alert("🎉 背景自動寄信成功！請去信箱收信（若沒收到可檢查垃圾信件匣）");
+        alert("🎉 背景自動寄信成功！請去信箱收信（若沒看到可檢查垃圾信件匣）");
         return true;
       }
       throw new Error('後端回傳失敗訊息: ' + text);
     } catch (e) {
       console.error("後端寄信發生錯誤:", e);
-      // 3. 安全化：移除 mailto 彈窗備用方案，改成彈出錯誤視窗，不打擾使用者
-      alert("❌ 透過網頁後端寄信失敗，原因：" + e.message);
+      // 🚀 修正 3：徹底拔除 mailto，改用純警告視窗，從此告別煩人的郵件軟體彈窗！
+      alert("❌ 透過網頁後端寄信失敗，原因：" + e.message + "\n（已成功攔截 mailto 彈窗，不會再打擾您）");
       return false;
     }
   }
   
-  // 如果連 GAS 網址都沒設定，直接提示錯誤
-  alert("❌ 尚未設定 GAS_WEBHOOK_URL，無法發送郵件。");
+  alert("❌ 尚未設定有效的 GAS_WEBHOOK_URL，無法寄信。");
   return false;
 }
-
 function signInWithGoogle() {
   // lightweight UI-only simulation if Firebase not available
   if (typeof firebase === 'undefined' || !window.firebaseAuth) {
