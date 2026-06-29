@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
   state.categoryLabels = loadCategoryLabels();
   renderCategoryPanel();
   updateCategoryOptions();
-  state.events = getInitialEvents();
+  getInitialEvents();
   render();
   scheduleAllSessionReminders();
   //  改成「每 3 秒鐘自動向雲端同步一次」
