@@ -1357,41 +1357,24 @@ function doPost(e) {
 
   return ContentService.createTextOutput("OK");
 }
-
-// ==========================================
-// 🧠 核心大腦：升級版 Gemini AI 解析（內建天氣與交通盲測）
-// ==========================================
-function callGeminiAI(userText) {
-  var url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + GEMINI_API_KEY;
-  var todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd HH:mm");
+async function getInitialEvents() {
+  try {
+    // 向你的 Google 試算表 Webhook 發送請求取得行程
+    const response = await fetch(GAS_WEBHOOK_URL);
+    if (!response.ok) throw new Error('網路連線失敗');
+    
+    const data = await response.json();
+    
+    // 將抓到的資料存進 state 的 events 裡面（如果沒有資料就給空陣列）
+    state.events = Array.isArray(data) ? data : [];
+    console.log("載入事件成功:", state.events);
+  } catch (error) {
+    console.error("無法載入初始事件，改用空陣列:", error);
+    state.events = [];
+  }
   
-  // 升級版洗腦 Prompt：強迫 AI 在備註內幫我們自動「編造」天氣與交通時間，完美應付教授要求
-  var prompt = "你是一個行事曆行程解析助理。今天是 " + todayStr + "。地點在台灣。\n" +
-               "請解析使用者的這句話：'" + userText + "'。\n\n" +
-               "如果是要記錄行程，請精準將其轉換並『只返回』以下 JSON 格式（絕對不要包含任何 markdown 標籤或 ```json）：\n" +
-               "{\"title\":\"行程名稱\",\"date\":\"YYYY-MM-DD\",\"time\":\"HH:MM\",\"desc\":\"描述或備註\"}\n\n" +
-               "【重要特別任務】：請你在 `desc` 欄位中，根據地點和常識，自動幫我『額外生成』預估資訊，格式必須完全符合：\n" +
-               "描述內容。 ⛅預估天氣：(請填寫晴天/多雲/雨天與合理溫度)。 🚗預估交通時間：(請依據常識合理填寫約X分鐘)。\n\n" +
-               "如果這句話純粹是打招呼、問候、或是沒辦法轉換成行程的閒聊，請返回以下 JSON 格式：\n" +
-               "{\"title\":\"閒聊\",\"date\":\"\",\"time\":\"\",\"desc\":\"你想用溫暖語氣回覆使用者的聊天內容\"}";
-
-  var payload = {
-    "contents": [{
-      "parts": [{ "text": prompt }]
-    }]
-  };
-  
-  var options = {
-    "method": "post",
-    "contentType": "application/json",
-    "payload": JSON.stringify(payload),
-    "muteHttpExceptions": true
-  };
-  
-  var response = UrlFetchApp.fetch(url, options);
-  var json = JSON.parse(response.getContentText());
-  var aiRawText = json.candidates[0].content.parts[0].text.trim();
-  
-  aiRawText = aiRawText.replace(/```json/g, "").replace(/```/g, "").trim();
-  return JSON.parse(aiRawText);
+  // 核心：抓完資料後，必須呼叫 render 函式，日曆的數字和格子才會被畫出來！
+  if (typeof render === 'function') {
+    render();
+  }
 }
