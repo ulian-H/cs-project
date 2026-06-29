@@ -1504,8 +1504,6 @@ function decodeJwt(token) {
 // ==========================================
 // 🚀 真正的 Google 登入系統 (GIS)
 // ==========================================
-const GOOGLE_CLIENT_ID = '535137906502-tg62fm2ov07ubaejhucejnqnpt246oao.apps.googleusercontent.com'; // 你的真實金鑰
-
 window.addEventListener('DOMContentLoaded', () => {
   if (typeof google !== 'undefined') {
     google.accounts.id.initialize({
