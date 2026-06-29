@@ -86,9 +86,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (autoWeatherBtn) autoWeatherBtn.addEventListener('click', demoAutoFillWeather);
   if (autoTransportBtn) autoTransportBtn.addEventListener('click', demoAutoFillTransport);
 
-  // Integration / notification controls (Google sign-in & Email)
+  /* Integration / notification controls (Google sign-in & Email)
   dom.googleSignInBtn = document.getElementById('google-signin-btn');
-  dom.googleSignOutBtn = document.getElementById('google-signout-btn');
+  dom.googleSignOutBtn = document.getElementById('google-signout-btn');*/
   dom.userInfo = document.getElementById('user-info');
   dom.notifyEmail = document.getElementById('notify-email');
   dom.testEmailBtn = document.getElementById('test-email-btn');
@@ -1500,4 +1500,64 @@ function decodeJwt(token) {
       return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
   }).join(''));
   return JSON.parse(jsonPayload);
+}
+// ==========================================
+// 🚀 真正的 Google 登入系統 (GIS)
+// ==========================================
+const GOOGLE_CLIENT_ID = '535137906502-tg62fm2ov07ubaejhucejnqnpt246oao.apps.googleusercontent.com'; // 你的真實金鑰
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (typeof google !== 'undefined') {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse
+    });
+    
+    // 綁定登入
+    const signinBtn = document.getElementById('google-signin-btn');
+    if (signinBtn) {
+      signinBtn.addEventListener('click', () => {
+        google.accounts.id.prompt(); 
+      });
+    }
+  }
+
+  // 綁定登出
+  const signoutBtn = document.getElementById('google-signout-btn');
+  if (signoutBtn) {
+    signoutBtn.addEventListener('click', () => {
+      document.getElementById('notify-email').value = ''; // 清空信箱輸入框
+      document.getElementById('google-signin-btn').classList.remove('hidden');
+      document.getElementById('google-signout-btn').classList.add('hidden');
+      alert('已登出，通知信箱已清除。');
+    });
+  }
+});
+
+function handleCredentialResponse(response) {
+  try {
+    // 解析 Google 傳回來的資料
+    const base64Url = response.credential.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const userPayload = JSON.parse(jsonPayload);
+
+    const userEmail = userPayload.email;
+
+    // 🎯 核心功能：自動幫使用者把 Email 填入輸入框！
+    const emailInput = document.getElementById('notify-email');
+    if (emailInput) {
+      emailInput.value = userEmail; 
+    }
+
+    // 切換按鈕狀態
+    document.getElementById('google-signin-btn').classList.add('hidden');
+    document.getElementById('google-signout-btn').classList.remove('hidden');
+
+    alert(`登入成功！已自動為您帶入信箱：${userEmail}`);
+  } catch (error) {
+    console.error('Google 登入解析失敗:', error);
+  }
 }
