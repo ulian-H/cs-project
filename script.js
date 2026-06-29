@@ -492,37 +492,20 @@ function deleteEventFromForm() {
 
 
 function syncAllEventsToSheet() {
-  const userEmailInput = document.getElementById('notify-email');
-  const userEmail = userEmailInput ? userEmailInput.value.trim() : '';
-
-  if (!userEmail) {
-    dom.aiResponse.textContent = '無法同步：請先登入 Google 帳號或輸入 Email 進行綁定。';
-    return;
-  }
-
   dom.aiResponse.textContent = '正在同步事件到 Google Sheet…';
-  
   fetch(GAS_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      action: 'saveEvents', 
-      userId: userEmail, // 告訴後端這是誰的行程
-      events: state.events 
-    }),
+    body: JSON.stringify({ action: 'saveEvents', events: state.events }),
   })
     .then((response) => response.json())
     .then((result) => {
       if (result.status === 'ok') {
-        const data = result.data || {};
-        const rowInfo = data.rowRange ? ` (行 ${data.rowRange.from} - ${data.rowRange.to})` : '';
-        dom.aiResponse.textContent = `✓ 已同步 ${data.saved || state.events.length} 筆事件至 Google Sheet${rowInfo}。`;
-      } else {
-        throw new Error(result.message);
+        dom.aiResponse.textContent = `✓ 已同步筆事件至 Google Sheet。`;
       }
     })
     .catch((error) => {
-      dom.aiResponse.textContent = `同步失敗：${error.message}。請確認 GAS 網址與 SPREADSHEET_ID 設定。`;
+      dom.aiResponse.textContent = `同步失敗：${error.message}`;
     });
 }
 
@@ -1414,41 +1397,17 @@ function doPost(e) {
 }
 async function getInitialEvents() {
   try {
-    // 🎯 1. 抓取目前畫面上通知信箱欄位裡面的 Email
-    const userEmailInput = document.getElementById('notify-email');
-    const userEmail = userEmailInput ? userEmailInput.value.trim() : '';
-
-    // 🎯 2. 防呆：如果沒信箱（還沒登入），就給空陣列並停止抓資料
-    if (!userEmail) {
-      console.log("尚未登入，目前顯示空行事曆");
-      state.events = [];
-      if (typeof render === 'function') {
-        render();
-      }
-      return; // 直接結束，不要去跟後端要資料
-    }
-
-    // 🎯 3. 核心修改：有信箱的話，就把信箱塞進網址後面
-    const requestUrl = GAS_WEBHOOK_URL + `?userId=${encodeURIComponent(userEmail)}`;
-
-    // 向你的 Google 試算表 Webhook 發送請求取得專屬行程
-    const response = await fetch(requestUrl);
+    const response = await fetch(GAS_WEBHOOK_URL);
     if (!response.ok) throw new Error('網路連線失敗');
     
     const data = await response.json();
-    
-    // 將抓到的資料存進 state 的 events 裡面（如果沒有資料就給空陣列）
     state.events = Array.isArray(data) ? data : [];
     console.log("載入事件成功:", state.events);
   } catch (error) {
     console.error("無法載入初始事件，改用空陣列:", error);
     state.events = [];
   }
-  
-  // 核心：抓完資料後，必須呼叫 render 函式，日曆的數字和格子才會被畫出來！
-  if (typeof render === 'function') {
-    render();
-  }
+  if (typeof render === 'function') render();
 }
 
 // 綁定「測試寄信通知」按鈕的點擊事件
