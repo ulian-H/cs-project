@@ -115,8 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
   getInitialEvents();
   render();
   scheduleAllSessionReminders();
-  //  改成「每 3 秒鐘自動向雲端同步一次」
-  setInterval(syncFromGoogleSheet, 3000);
+  //  改成「每 60 秒鐘自動向雲端同步一次」
+  setInterval(syncFromGoogleSheet, 60000);
 });
 
 
