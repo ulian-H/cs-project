@@ -492,11 +492,9 @@ function deleteEventFromForm() {
 
 
 function syncAllEventsToSheet() {
-  // 🎯 1. 抓取目前登入者的 Google Email (作為身分證)
   const userEmailInput = document.getElementById('notify-email');
   const userEmail = userEmailInput ? userEmailInput.value.trim() : '';
 
-  // 防呆：如果沒登入或沒信箱，就擋下來不給同步
   if (!userEmail) {
     dom.aiResponse.textContent = '無法同步：請先登入 Google 帳號或輸入 Email 進行綁定。';
     return;
@@ -507,10 +505,9 @@ function syncAllEventsToSheet() {
   fetch(GAS_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    // 🎯 2. 核心修改：在 body 裡面塞入 userId，讓 GAS 知道這是誰的行程！
     body: JSON.stringify({ 
       action: 'saveEvents', 
-      userId: userEmail, 
+      userId: userEmail, // 告訴後端這是誰的行程
       events: state.events 
     }),
   })
@@ -1417,8 +1414,25 @@ function doPost(e) {
 }
 async function getInitialEvents() {
   try {
-    // 向你的 Google 試算表 Webhook 發送請求取得行程
-    const response = await fetch(GAS_WEBHOOK_URL);
+    // 🎯 1. 抓取目前畫面上通知信箱欄位裡面的 Email
+    const userEmailInput = document.getElementById('notify-email');
+    const userEmail = userEmailInput ? userEmailInput.value.trim() : '';
+
+    // 🎯 2. 防呆：如果沒信箱（還沒登入），就給空陣列並停止抓資料
+    if (!userEmail) {
+      console.log("尚未登入，目前顯示空行事曆");
+      state.events = [];
+      if (typeof render === 'function') {
+        render();
+      }
+      return; // 直接結束，不要去跟後端要資料
+    }
+
+    // 🎯 3. 核心修改：有信箱的話，就把信箱塞進網址後面
+    const requestUrl = GAS_WEBHOOK_URL + `?userId=${encodeURIComponent(userEmail)}`;
+
+    // 向你的 Google 試算表 Webhook 發送請求取得專屬行程
+    const response = await fetch(requestUrl);
     if (!response.ok) throw new Error('網路連線失敗');
     
     const data = await response.json();
@@ -1436,6 +1450,7 @@ async function getInitialEvents() {
     render();
   }
 }
+
 // 綁定「測試寄信通知」按鈕的點擊事件
 document.getElementById('test-email-btn').addEventListener('click', async () => {
   const emailInput = document.getElementById('notify-email').value;
