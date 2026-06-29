@@ -1378,3 +1378,112 @@ async function getInitialEvents() {
     render();
   }
 }
+// 綁定「測試寄信通知」按鈕的點擊事件
+document.getElementById('test-email-btn').addEventListener('click', async () => {
+  const emailInput = document.getElementById('notify-email').value;
+  
+  if (!emailInput) {
+    alert('請先輸入要接收通知的 Email 喔！');
+    return;
+  }
+
+  // 把按鈕文字改成「發送中...」避免重複點擊
+  const btn = document.getElementById('test-email-btn');
+  const originalText = btn.innerText;
+  btn.innerText = '發送中...';
+  btn.disabled = true;
+
+  try {
+    // 呼叫你在 script.js 最上面定義的 GAS_WEBHOOK_URL
+    const response = await fetch(GAS_WEBHOOK_URL, {
+      method: 'POST',
+      // ⚠️ 重要：使用 text/plain 才能避開瀏覽器的 CORS 跨網域阻擋
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'sendEmail', // 告訴 GAS 這次的任務是「寄信」
+        email: emailInput,
+        subject: '【AI 智慧行事曆】系統通知',
+        body: '你好！這是一封由你的行事曆網頁透過 Google Apps Script 自動發送的測試通知信！\n\n系統運作正常 🚀'
+      })
+    });
+
+    const result = await response.text();
+    alert('信件已成功寄出！請去 Gmail 檢查。');
+    
+  } catch (error) {
+    console.error('發信失敗:', error);
+    alert('發信失敗，請按 F12 檢查 Console。');
+  } finally {
+    // 恢復按鈕狀態
+    btn.innerText = originalText;
+    btn.disabled = false;
+  }
+});
+// 🔑 已經幫你填好 Google Client ID
+const GOOGLE_CLIENT_ID = '535137906502-tg62fm2ov07ubaejhucejnqnpt246oao.apps.googleusercontent.com';
+
+// 頁面載入完成後初始化 Google 登入
+window.addEventListener('DOMContentLoaded', () => {
+  if (typeof google !== 'undefined') {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse // 登入成功後的處理函式
+    });
+    
+    // 綁定登入按鈕點擊事件
+    document.getElementById('google-signin-btn').addEventListener('click', () => {
+      google.accounts.id.prompt(); // 彈出 Google 快速登入視窗
+    });
+  }
+
+  // 綁定登出按鈕
+  document.getElementById('google-signout-btn').addEventListener('click', () => {
+    // 清除 UI 狀態
+    document.getElementById('notify-email').value = '';
+    document.getElementById('user-info').innerText = '';
+    document.getElementById('google-signin-btn').classList.remove('hidden');
+    document.getElementById('google-signout-btn').classList.add('hidden');
+    alert('已成功登出');
+  });
+});
+
+// 處理 Google 回傳的加密登入資料 (JWT Token)
+function handleCredentialResponse(response) {
+  try {
+    // 解密 Google 回傳的使用者資訊
+    const responsePayload = decodeJwt(response.credential);
+    
+    const userEmail = responsePayload.email;
+    const userName = responsePayload.name;
+    const userPicture = responsePayload.picture;
+
+    // 1. 自動把真實 Email 填入你的「通知 Email」輸入框！
+    document.getElementById('notify-email').value = userEmail;
+
+    // 2. 更新右上角 UI，顯示使用者大頭貼與名字
+    document.getElementById('user-info').innerHTML = `
+      <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+        <img src="${userPicture}" style="width:24px; height:24px; border-radius:50%;" />
+        <span>嗨，${userName}</span>
+      </div>
+    `;
+
+    // 3. 切換登入/登出按鈕顯示狀態
+    document.getElementById('google-signin-btn').classList.add('hidden');
+    document.getElementById('google-signout-btn').classList.remove('hidden');
+
+    alert(`登入成功！已綁定通知信箱：${userEmail}`);
+  } catch (error) {
+    console.error('解密 Google 資料失敗:', error);
+  }
+}
+
+// 簡易 JWT 解密工具函式（用來解析 Google 傳回的加密包裹）
+function decodeJwt(token) {
+  const base64Url = token.split('.')[1];
+  const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+  }).join(''));
+  return JSON.parse(jsonPayload);
+}
