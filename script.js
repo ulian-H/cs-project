@@ -91,24 +91,23 @@ document.addEventListener('DOMContentLoaded', () => {
   dom.notifyEmail = document.getElementById('notify-email');
   dom.testEmailBtn = document.getElementById('test-email-btn');
 
-  // 🎯 【修正後】安全綁定測試寄信按鈕
+  // 🎯 改成這樣（確保裡面所有的 dom 控鍵都在安全保護下執行）
   if (dom.testEmailBtn) {
     dom.testEmailBtn.addEventListener('click', async () => {
       const email = dom.notifyEmail ? dom.notifyEmail.value.trim() : '';
       if (!email) {
-        if (dom.userInfo) dom.userInfo.textContent = '請先輸入通知 Email。';
+       if (dom.userInfo) dom.userInfo.textContent = '請先輸入通知 Email。';
         return;
       }
       if (dom.userInfo) dom.userInfo.textContent = '正在嘗試寄送測試通知...';
-      try {
+     try {
         await sendEmailNotification(email, '測試通知：AI 行事曆', '這是一封測試通知，系統設定完成後會改為自動傳送。');
-        if (dom.userInfo) dom.userInfo.textContent = '測試通知已發送！請檢查您的信箱。';
+       if (dom.userInfo) dom.userInfo.textContent = '測試通知已發送！請檢查您的信箱。';
       } catch (e) {
-        if (dom.userInfo) dom.userInfo.textContent = `測試通知失敗：${e.message}`;
-      }
-    });
+       if (dom.userInfo) dom.userInfo.textContent = `測試通知失敗：${e.message}`;
+     }
+   });
   }
-
   state.categoryLabels = loadCategoryLabels();
   renderCategoryPanel();
   updateCategoryOptions();
@@ -493,11 +492,27 @@ function deleteEventFromForm() {
 
 
 function syncAllEventsToSheet() {
+  // 🎯 1. 抓取目前登入者的 Google Email (作為身分證)
+  const userEmailInput = document.getElementById('notify-email');
+  const userEmail = userEmailInput ? userEmailInput.value.trim() : '';
+
+  // 防呆：如果沒登入或沒信箱，就擋下來不給同步
+  if (!userEmail) {
+    dom.aiResponse.textContent = '無法同步：請先登入 Google 帳號或輸入 Email 進行綁定。';
+    return;
+  }
+
   dom.aiResponse.textContent = '正在同步事件到 Google Sheet…';
+  
   fetch(GAS_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'saveEvents', events: state.events }),
+    // 🎯 2. 核心修改：在 body 裡面塞入 userId，讓 GAS 知道這是誰的行程！
+    body: JSON.stringify({ 
+      action: 'saveEvents', 
+      userId: userEmail, 
+      events: state.events 
+    }),
   })
     .then((response) => response.json())
     .then((result) => {
@@ -1141,8 +1156,17 @@ async function syncFromGoogleSheet() {
   try {
     if(dom.aiResponse) dom.aiResponse.textContent = "🔄 正在從 Google Sheet 載入最新行程...";
 
-    // 1. 向 GAS 要資料
-    const response = await fetch(GAS_WEBHOOK_URL);
+    // 🎯 1. 先抓取目前登入者的 Google Email (對照你 HTML 內記錄 Email 的欄位 ID)
+const userEmail = document.getElementById('notify-email') ? document.getElementById('notify-email').value.trim() : '';
+
+// 如果沒登入，就不要抓資料（或者清空日曆）
+if (!userEmail) {
+  console.log("尚未登入，不載入個人行程");
+  return;
+}
+
+// 🎯 2. 在網址後面塞入 ?userId=使用者的信箱，後端 GAS 才會進行過濾
+const response = await fetch(`${GAS_WEBHOOK_URL}?userId=${encodeURIComponent(userEmail)}`);
     const data = await response.json();
 
     if (data.error) throw new Error(data.error);
