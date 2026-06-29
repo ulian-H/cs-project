@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.view-btn').forEach((btn) => btn.addEventListener('click', switchView));
   dom.eventAllDay.addEventListener('change', toggleAllDay);
 
-  // AI controls
+// AI controls
   dom.aiDuration = document.getElementById('ai-duration');
   dom.aiPriority = document.getElementById('ai-priority');
   dom.aiDraftToggle = document.getElementById('ai-draft-toggle');
@@ -86,28 +86,28 @@ document.addEventListener('DOMContentLoaded', () => {
   if (autoWeatherBtn) autoWeatherBtn.addEventListener('click', demoAutoFillWeather);
   if (autoTransportBtn) autoTransportBtn.addEventListener('click', demoAutoFillTransport);
 
-  /* Integration / notification controls (Google sign-in & Email)
-  dom.googleSignInBtn = document.getElementById('google-signin-btn');
-  dom.googleSignOutBtn = document.getElementById('google-signout-btn');*/
+  // 🚀 【修正後】網頁基礎控制項載入
   dom.userInfo = document.getElementById('user-info');
   dom.notifyEmail = document.getElementById('notify-email');
   dom.testEmailBtn = document.getElementById('test-email-btn');
-  if (dom.googleSignInBtn) dom.googleSignInBtn.addEventListener('click', () => signInWithGoogle());
-  if (dom.googleSignOutBtn) dom.googleSignOutBtn.addEventListener('click', () => signOutGoogle());
-  if (dom.testEmailBtn) dom.testEmailBtn.addEventListener('click', async () => {
-    const email = dom.notifyEmail ? dom.notifyEmail.value.trim() : '';
-    if (!email) {
-      if (dom.userInfo) dom.userInfo.textContent = '請先輸入通知 Email。';
-      return;
-    }
-    if (dom.userInfo) dom.userInfo.textContent = '正在嘗試寄送測試通知...';
-    try {
-      await sendEmailNotification(email, '測試通知：AI 行事曆', '這是一封測試通知，系統設定完成後會改為自動傳送。');
-      if (dom.userInfo) dom.userInfo.textContent = '測試通知已發送（若使用 mailto，請檢查郵件客戶端）。';
-    } catch (e) {
-      if (dom.userInfo) dom.userInfo.textContent = `測試通知失敗：${e.message}`;
-    }
-  });
+
+  // 🎯 【修正後】安全綁定測試寄信按鈕
+  if (dom.testEmailBtn) {
+    dom.testEmailBtn.addEventListener('click', async () => {
+      const email = dom.notifyEmail ? dom.notifyEmail.value.trim() : '';
+      if (!email) {
+        if (dom.userInfo) dom.userInfo.textContent = '請先輸入通知 Email。';
+        return;
+      }
+      if (dom.userInfo) dom.userInfo.textContent = '正在嘗試寄送測試通知...';
+      try {
+        await sendEmailNotification(email, '測試通知：AI 行事曆', '這是一封測試通知，系統設定完成後會改為自動傳送。');
+        if (dom.userInfo) dom.userInfo.textContent = '測試通知已發送！請檢查您的信箱。';
+      } catch (e) {
+        if (dom.userInfo) dom.userInfo.textContent = `測試通知失敗：${e.message}`;
+      }
+    });
+  }
 
   state.categoryLabels = loadCategoryLabels();
   renderCategoryPanel();
