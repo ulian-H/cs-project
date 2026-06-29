@@ -826,22 +826,35 @@ function scheduleAllSessionReminders() {
 // ---------- Email send and Google sign-in helpers (lightweight, fallback) ----------
 async function sendEmailNotification(toEmail, subject, body) {
   if (!toEmail) throw new Error('需要目標 Email');
-  // Prefer backend via GAS if configured
+  
+  // 📢 檢查點：請確保你 script.js 最上方的 GAS_WEBHOOK_URL 有填入正確的 GAS 網址！
   if (GAS_WEBHOOK_URL && !GAS_WEBHOOK_URL.includes('YOUR_DEPLOYMENT_ID')) {
     try {
-      const res = await fetch(GAS_WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'sendEmail', to: toEmail, subject, body }) });
-      const json = await res.json();
-      if (json && json.status === 'ok') return true;
-      throw new Error(json && json.message ? json.message : '後端寄信失敗');
+      // 1. 欄位修正：把 to 改成 email，對齊 GAS 後端
+      const res = await fetch(GAS_WEBHOOK_URL, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ action: 'sendEmail', email: toEmail, subject, body }) 
+      });
+      
+      // 2. 格式修正：因為 GAS 回傳純文字，這裡改用 text() 接收才不會崩潰
+      const text = await res.text(); 
+      if (text.includes("successfully") || text.includes("Email sent")) {
+        alert("🎉 背景自動寄信成功！請去信箱收信（若沒收到可檢查垃圾信件匣）");
+        return true;
+      }
+      throw new Error('後端回傳失敗訊息: ' + text);
     } catch (e) {
-      // fallback to mailto
-      window.open(`mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-      return true;
+      console.error("後端寄信發生錯誤:", e);
+      // 3. 安全化：移除 mailto 彈窗備用方案，改成彈出錯誤視窗，不打擾使用者
+      alert("❌ 透過網頁後端寄信失敗，原因：" + e.message);
+      return false;
     }
   }
-  // client fallback
-  window.open(`mailto:${encodeURIComponent(toEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-  return true;
+  
+  // 如果連 GAS 網址都沒設定，直接提示錯誤
+  alert("❌ 尚未設定 GAS_WEBHOOK_URL，無法發送郵件。");
+  return false;
 }
 
 function signInWithGoogle() {
