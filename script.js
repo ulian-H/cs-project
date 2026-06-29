@@ -1120,8 +1120,6 @@ function suggestReschedule(event) {
   return null;
 }
 
-// 把你的 script.js 第 1 行換成這樣：
-const GAS_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbzs4MSwZNdLLUXye_faDmADmFnAcq4VnmEWCUfpuGf2qT3zWFqqpWgQkiUqMhDcc3SvIg/exec';
 // ==========================================
 // 🚀 新增：從 Google Sheet 抓取資料並更新行事曆
 // ==========================================
